@@ -1,0 +1,433 @@
+generator client {
+  provider = "prisma-client-js"
+  // provider        = "postgresql"
+  // previewFeatures = []
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id   Int    @id @default(autoincrement())
+  name String
+
+  groups           UserGroup[]                 @relation("UserGroupUser")
+  availableActions ProcessShablonActionUsers[] @relation("ProcessShablonActionUsersUser")
+  actionsCompleting ActionCompleting[] @relation("ActionCompletingUsers")
+}
+
+model UserGroup {
+  userId  Int
+  user    User  @relation("UserGroupUser", fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  groupId Int
+  group   Group @relation("UserGroupGroup", fields: [groupId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([userId, groupId])
+}
+
+model Group {
+  id   Int    @id @default(autoincrement())
+  name String
+
+  parentId Int?
+  parent   Group?  @relation("UserGroupHierarchy", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  children Group[] @relation("UserGroupHierarchy")
+
+  availableActions ProcessShablonActionUserGroups[] @relation("ProcessShablonActionUserGroupsGroup")
+
+  users UserGroup[] @relation("UserGroupGroup")
+}
+
+model MeasureUnit {
+  id   Int    @id @default(autoincrement())
+  name String
+
+  productTypes     ProductType[]     @relation("ProductTypeMeasureUnit")
+  products         Product[]         @relation("ProductMeasureUnit")
+  productParametrs ProductParametr[] @relation("ProductParametrMeasureUnit")
+}
+
+model ProductType {
+  id                   Int                             @id @default(autoincrement())
+  name                 String
+  measureUnitId        Int
+  measureUnit          MeasureUnit                     @relation("ProductTypeMeasureUnit", fields: [measureUnitId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  parentTypeId         Int?
+  parentType           ProductType?                    @relation("ProductTypeHierarchy", fields: [parentTypeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  childrenTypes        ProductType[]                   @relation("ProductTypeHierarchy")
+  products             Product[]                       @relation("ProductTypes")
+  parametrsValueLimits ProductTypeParametrValueLimit[] @relation("ProductTypeParametrValueLimitProductType")
+  processShablons      ProcessShablon[]                @relation("ProcessShablon")
+}
+
+model Config {
+  id       Int       @id @default(autoincrement())
+  name     String
+  products Product[] @relation("Config")
+}
+
+model Product {
+  id                   Int                         @id @default(autoincrement())
+  name                 String
+  deletedAt            DateTime?                   @db.Timestamptz()
+  measureUnitId        Int?
+  measureUnit          MeasureUnit?                @relation("ProductMeasureUnit", fields: [measureUnitId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  baseProductId        Int?
+  baseProduct          Product?                    @relation("ProductHierarchy", fields: [baseProductId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  basedProducts        Product[]                   @relation("ProductHierarchy")
+  productTypeId        Int
+  productType          ProductType                 @relation("ProductTypes", fields: [productTypeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  parametrsValueLimits ProductParametrValueLimit[] @relation("ProductParametrValueLimitProduct")
+
+  specification Specification[] @relation("Specification")
+  details       Specification[] @relation("SpecificationDetail")
+  operations    Operation[]     @relation("Operation")
+
+  parametrsValue ProductParametrValues[] @relation("ProductParametrValuesProduct")
+
+  configId Int?
+  config   Config? @relation("Config", fields: [configId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  drawing String?
+
+  processes Process[] @relation("ProcessProduct")
+}
+
+model ProductParametrType {
+  id               Int               @id @default(autoincrement())
+  name             String
+  productParametrs ProductParametr[] @relation("ProductParametrTypes")
+}
+
+model ProductParametr {
+  id                              Int                             @id @default(autoincrement())
+  name                            String
+  measureUnitId                   Int
+  measureUnit                     MeasureUnit                     @relation("ProductParametrMeasureUnit", fields: [measureUnitId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  productParametrTypeId           Int
+  productParametrTypes            ProductParametrType             @relation("ProductParametrTypes", fields: [productParametrTypeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  productsParametrValueLimits     ProductParametrValueLimit[]     @relation("ProductParametrValueLimitParametr")
+  productTypesParametrValueLimits ProductTypeParametrValueLimit[] @relation("ProductTypeParametrValueLimitParametr")
+
+  values         ProductParametrValues[]        @relation("ProductParametrValuesParametr")
+  possibleValues ProductParamterPossibleValue[] @relation("ProductParamterPossibleValue")
+
+  canBeChangedBySettings SpecificationSettingsByParameter[] @relation("SpecificationSettingsByParameterParametr")
+}
+
+model ProductParamterPossibleValue {
+  paramId Int
+  param   ProductParametr @relation("ProductParamterPossibleValue", fields: [paramId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  value   String
+
+  @@unique([paramId, value])
+}
+
+model ProductParametrValues {
+  id         Int             @id @default(autoincrement())
+  productId  Int
+  product    Product         @relation("ProductParametrValuesProduct", fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  parametrId Int
+  parametr   ProductParametr @relation("ProductParametrValuesParametr", fields: [parametrId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  value      String
+
+  specificationSettingsWhereThisIsFirstValue  SpecificationSettingsByParametersFunction[] @relation("firstParametr")
+  specificationSettingsWhereThisIsSecondValue SpecificationSettingsByParametersFunction[] @relation("secondParametr")
+
+  @@unique([productId, parametrId])
+}
+
+model ProductTypeParametrValueLimit {
+  productTypeId Int
+  productType   ProductType     @relation("ProductTypeParametrValueLimitProductType", fields: [productTypeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  parametrId    Int
+  parametr      ProductParametr @relation("ProductTypeParametrValueLimitParametr", fields: [parametrId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([productTypeId, parametrId])
+}
+
+model ProductParametrValueLimit {
+  productId  Int
+  product    Product         @relation("ProductParametrValueLimitProduct", fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  parametrId Int
+  parametr   ProductParametr @relation("ProductParametrValueLimitParametr", fields: [parametrId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([productId, parametrId])
+}
+
+model Operation {
+  id        Int     @id @default(autoincrement())
+  productId Int
+  product   Product @relation("Operation", fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  name      String
+}
+
+model Specification {
+  id            Int     @id @default(autoincrement())
+  productId     Int
+  product       Product @relation("Specification", fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  usedProductId Int
+  usedProduct   Product @relation("SpecificationDetail", fields: [usedProductId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  count         Float
+
+  settingsByParameters SpecificationSettingsByParameter[] @relation("SpecificationSettingsByParameterSpecification")
+}
+
+enum SPEC_SETTING_OPERATOR {
+  EQUATE
+  DECREASE
+  INCREASE
+  MULTIPLY
+  DIVIDE
+}
+
+model SpecificationSettingsByParameter {
+  id              Int           @id @default(autoincrement())
+  specificationId Int
+  specification   Specification @relation("SpecificationSettingsByParameterSpecification", fields: [specificationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  functionId Int
+  function   SpecificationSettingsByParametersFunction @relation("SpecificationSettingsByParametersFunction", fields: [functionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  parametrId Int?
+  parametr   ProductParametr? @relation("SpecificationSettingsByParameterParametr", fields: [parametrId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  operator SPEC_SETTING_OPERATOR
+
+  value String
+}
+
+model SpecificationSettingsByParametersFunction {
+  id Int @id @default(autoincrement())
+
+  firstString     String?
+  firstFunctionId Int?
+  firstFunction   SpecificationSettingsByParametersFunction? @relation("firstSpecificationSettingsByParametersFunction", fields: [firstFunctionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  firstParametrId Int
+  firstParametr   ProductParametrValues?                     @relation("firstParametr", fields: [firstParametrId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  secondString     String?
+  secondFunctionId Int?
+  secondFunction   SpecificationSettingsByParametersFunction? @relation("secondSpecificationSettingsByParametersFunction", fields: [secondFunctionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  secondParametrId Int
+  secondParametr   ProductParametrValues?                     @relation("secondParametr", fields: [secondParametrId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  compareOperator CompareOperator
+
+  settingsIncludesThisFunction SpecificationSettingsByParameter[] @relation("SpecificationSettingsByParametersFunction")
+
+  settingsFunctionsWhereThisIsFirstValue  SpecificationSettingsByParametersFunction[] @relation("firstSpecificationSettingsByParametersFunction")
+  settingsFunctionsWhereThisIsSecondValue SpecificationSettingsByParametersFunction[] @relation("secondSpecificationSettingsByParametersFunction")
+}
+
+model ProcessShablon {
+  id Int @id @default(autoincrement())
+
+  name String?
+
+  productTypeId Int
+  productType   ProductType @relation("ProcessShablon", fields: [productTypeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  baseShablonForChangeId Int?
+  baseShablonForChange   ProcessShablon?  @relation("baseShablonForChange", fields: [baseShablonForChangeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  shablonVariants        ProcessShablon[] @relation("baseShablonForChange")
+
+  baseShablonForCreateId Int?
+  baseShablonForCreate   ProcessShablon?  @relation("baseShablonForCreate", fields: [baseShablonForCreateId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  shablonExtensions      ProcessShablon[] @relation("baseShablonForCreate")
+
+  maxLauchedProcessesCount Int?
+
+  actions ProcessShablonAction[] @relation("ProcessShablonAction")
+
+  processes Process[] @relation("ProcessProcessShablon")
+}
+
+enum ActionType {
+  START
+  ACTION
+  PROPOGATION
+  CHOICE
+  WAITING_ALL
+  WAITING_ONE
+  END
+}
+
+model ProcessShablonActionHierarchy {
+  id               Int            @id @default(autoincrement())
+
+  parentId Int
+  childId  Int
+
+  parent ProcessShablonAction @relation("ProcessShablonActionParents", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  child  ProcessShablonAction @relation("ProcessShablonActionChildren", fields: [childId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+
+  transitionConditions TransitionCondition[] @relation("TransitionConditionID")
+}
+
+model ProcessShablonAction {
+  id               Int            @id @default(autoincrement())
+  name             String
+  type             ActionType
+  processShablonId Int
+  processShablon   ProcessShablon @relation("ProcessShablonAction", fields: [processShablonId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  children  ProcessShablonActionHierarchy[] @relation("ProcessShablonActionParents")
+  parents ProcessShablonActionHierarchy[] @relation("ProcessShablonActionChildren")
+
+  inputFields                ProcessShablonActionInputField[] @relation("ProcessShablonActionInputFieldValue")
+  availableForUsers          ProcessShablonActionUsers[]      @relation("ProcessShablonActionUsers")
+  availableForUserGroups     ProcessShablonActionUserGroups[] @relation("ProcessShablonActionUserGroups")
+
+  actionsCompleting ActionCompleting[] @relation("shablonAction")
+}
+
+model ProcessShablonActionUsers {
+  actionId Int
+  action   ProcessShablonAction @relation("ProcessShablonActionUsers", fields: [actionId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "actionId_userId_fkey")
+  userId   Int
+  user     User                 @relation("ProcessShablonActionUsersUser", fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([actionId, userId])
+}
+
+model ProcessShablonActionUserGroups {
+  actionId Int
+  action   ProcessShablonAction @relation("ProcessShablonActionUserGroups", fields: [actionId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "actionId_groupId_fkey")
+  groupId  Int
+  group    Group                @relation("ProcessShablonActionUserGroupsGroup", fields: [groupId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([actionId, groupId])
+}
+
+enum CompareOperator {
+  MORE
+  LESS
+  EQUAL
+  OR
+  AND
+}
+
+model TransitionCondition {
+  id Int @id @default(autoincrement())
+
+  parentToChild ProcessShablonActionHierarchy  @relation("TransitionConditionID", fields: [id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  transitionConditionFuncId Int
+  transitionConditionFunc   TransitionConditionFunc @relation("TransitionConditionFunc", fields: [transitionConditionFuncId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model TransitionConditionFunc {
+  id Int @id @default(autoincrement())
+
+  firstString                           String?
+  firstCompletedActionInputFieldId Int?
+  firstCompletedActionInputField   ProcessShablonActionInputField? @relation("firstCompletedActionInputFieldId", fields: [firstCompletedActionInputFieldId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  firstTransitionConditionId            Int?
+  firstTransitionCondition              TransitionConditionFunc?        @relation("firstTransitionCondition", fields: [firstTransitionConditionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  secondString                           String?
+  secondCompletedActionInputFieldId Int?
+  secondCompletedActionInputField   ProcessShablonActionInputField? @relation("secondCompletedActionInputFieldId", fields: [secondCompletedActionInputFieldId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  secondTransitionConditionId            Int?
+  secondTransitionCondition              TransitionConditionFunc?        @relation("secondTransitionCondition", fields: [secondTransitionConditionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  compareOperator CompareOperator
+
+  transitionsWhereThisIsFirstValue  TransitionConditionFunc[] @relation("firstTransitionCondition")
+  transitionsWhereThisIsSecondValue TransitionConditionFunc[] @relation("secondTransitionCondition")
+
+  transitionConditionIncludesThisFunction TransitionCondition[] @relation("TransitionConditionFunc")
+}
+
+enum RequestType {
+  GET
+  POST
+  PATCH
+  PUT
+  DELETE
+}
+
+model Request {
+  id          Int                           @id @default(autoincrement())
+  requestType RequestType
+  requestUrl  String
+  inputFields     ProcessShablonActionInputField[] @relation("ActionRequest")
+}
+
+enum requestInputFieldType {
+  PARAM
+  BODY
+}
+
+model ProcessShablonActionInputField {
+  id                     Int                              @id @default(autoincrement())
+  processShablonActionId Int
+  processShablonAction   ProcessShablonAction             @relation("ProcessShablonActionInputFieldValue", fields: [processShablonActionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  actionInputFieldValues CompletedActionInputFieldValue[] @relation("ActionInputFieldValue")
+
+  requestInputFieldType requestInputFieldType?
+  requestParamName String?
+  requestId Int? 
+  request   Request? @relation("ActionRequest", fields: [requestId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  label                 String
+
+  transitionsWhereThisIsFirstValue  TransitionConditionFunc[] @relation("firstCompletedActionInputFieldId")
+  transitionsWhereThisIsSecondValue TransitionConditionFunc[] @relation("secondCompletedActionInputFieldId")
+}
+
+model Process {
+  id               Int               @id @default(autoincrement())
+  productId        Int
+  product          Product           @relation("ProcessProduct", fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  processShablonId Int
+  processShablon   ProcessShablon    @relation("ProcessProcessShablon", fields: [processShablonId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  actions          ActionCompleting[] @relation("CompletedAction")
+}
+
+model ActionCompleting {
+  id               Int                              @id @default(autoincrement())
+
+  processId        Int
+  process          Process                          @relation("CompletedAction", fields: [processId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  
+  shablonActionId Int
+  shablonAction ProcessShablonAction @relation("shablonAction", fields: [shablonActionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  
+  inputFieldValues CompletedActionInputFieldValue[] @relation("CompletedActionInputFieldValue")
+  
+  completed        Boolean                          @default(false)
+  closed Boolean @default(false)
+  level Int @default(1)
+
+
+  setCompleteUserId Int? 
+  setCompleteUser          User?                          @relation("ActionCompletingUsers", fields: [setCompleteUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  children ActionCompletingHierarchy[] @relation("ActionCompletingHierarchyParents")
+  parents ActionCompletingHierarchy[] @relation("ActionCompletingHierarchyChildren")
+}
+
+model ActionCompletingHierarchy {
+  id               Int            @id @default(autoincrement())
+
+  parentId Int
+  childId  Int
+
+  parent ActionCompleting @relation("ActionCompletingHierarchyParents", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  child  ActionCompleting @relation("ActionCompletingHierarchyChildren", fields: [childId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model CompletedActionInputFieldValue {
+  id                               Int                            @id @default(autoincrement())
+  completedActionId                Int
+  completedAction                  ActionCompleting                @relation("CompletedActionInputFieldValue", fields: [completedActionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  processShablonActionInputFieldId Int
+  processShablonActionInputField   ProcessShablonActionInputField @relation("ActionInputFieldValue", fields: [processShablonActionInputFieldId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  value String
+}
